@@ -1,73 +1,68 @@
+const photo = document.getElementById('photo');
+const preview = document.getElementById('preview');
+const startBtn = document.getElementById('startBtn');
 const video = document.getElementById('video');
-const imageUpload = document.getElementById('imageUpload');
-const uploadedImage = document.getElementById('uploadedImage');
-const result = document.getElementById('result');
-const compareBtn = document.getElementById('compareBtn');
+const status = document.getElementById('status');
 
-let referenceDescriptor;
+let savedDescriptor; // rasmni saqlash uchun
 
-// Kamera yoqish
-async function startCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-    video.srcObject = stream;
-}
-
-// Modellarni yuklash
+// Modellarni CDN orqali yuklash
 Promise.all([
-    faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
-    faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
-    faceapi.nets.faceLandmark68Net.loadFromUri('/models')
-]).then(startCamera);
-
-// Yuklangan rasmni o‘qish
-imageUpload.addEventListener('change', async () => {
-    const file = imageUpload.files[0];
-    const img = await faceapi.bufferToImage(file);
-    uploadedImage.src = img.src;
-
-    const detection = await faceapi
-        .detectSingleFace(img)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-    if (!detection) {
-        result.textContent = "Rasmda yuz topilmadi ❌";
-        return;
-    }
-
-    referenceDescriptor = detection.descriptor;
-    result.textContent = "Rasm yuklandi va yuz saqlandi ✅";
+  faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/models'),
+  faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/models'),
+  faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/models')
+]).then(() => {
+    status.textContent = "Modellar yuklandi ✅";
 });
 
-// Solishtirish
-compareBtn.addEventListener('click', async () => {
-    if (!referenceDescriptor) {
-        result.textContent = "Avval rasm yuklang!";
+// 1. Rasmni tanlash va saqlash
+photo.addEventListener('change', async () => {
+    const file = photo.files[0];
+    if(!file) return;
+
+    const img = await faceapi.bufferToImage(file);
+    preview.src = img.src;
+
+    const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+    if(!detection){
+        status.textContent = "Rasmda yuz topilmadi ❌";
         return;
     }
 
-    const liveDetection = await faceapi
-        .detectSingleFace(video)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+    savedDescriptor = detection.descriptor;
+    status.textContent = "Rasm saqlandi ✅";
+});
 
-    if (!liveDetection) {
-        result.textContent = "Kamerada yuz topilmadi!";
+// 2. Kamera va solishtirish
+startBtn.addEventListener('click', async () => {
+    if(!savedDescriptor){
+        alert("Avval rasm yuklang!");
         return;
     }
 
-    const distance = faceapi.euclideanDistance(
-        referenceDescriptor,
-        liveDetection.descriptor
-    );
+    // Kamera ishga tushadi
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
 
-    let similarity = Math.round((1 - distance) * 100);
+    status.textContent = "Kamera ishlayapti, yuzni aniqlash...";
 
-    if(similarity > 60){
-        result.textContent = `✅ Moslik: ${similarity}% - Bu bir xil odam`;
-        result.style.color = "green";
-    } else {
-        result.textContent = `❌ Mos emas: ${similarity}%`;
-        result.style.color = "red";
-    }
+    // Har 1.5 soniyada solishtirish
+    setInterval(async () => {
+        const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+        if(!detection){
+            status.textContent = "Kamerada yuz topilmadi ❌";
+            return;
+        }
+
+        const distance = faceapi.euclideanDistance(savedDescriptor, detection.descriptor);
+        const percent = Math.round((1 - distance) * 100);
+
+        if(percent > 60){
+            status.textContent = `✅ MOS! O'xshashlik: ${percent}%`;
+            status.style.color = "green";
+        } else {
+            status.textContent = `❌ MOS EMAS: ${percent}%`;
+            status.style.color = "red";
+        }
+    }, 1500);
 });

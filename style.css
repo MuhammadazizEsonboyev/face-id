@@ -1,38 +1,29 @@
 body {
     font-family: Arial, sans-serif;
-    background: linear-gradient(to right, #e8f5e9, #ffffff);
     text-align: center;
-}
-
-.app {
-    width: 800px;
-    margin: 30px auto;
-    background: white;
+    background: #f0f4f0;
     padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.2);
 }
 
 video, img {
-    width: 300px;
     border-radius: 10px;
-    border: 2px solid #2e7d32;
+    border: 2px solid green;
     margin-top: 10px;
 }
 
 button {
-    margin-top: 20px;
-    padding: 12px 20px;
-    background: #2e7d32;
+    padding: 10px 20px;
+    font-size: 16px;
+    background: green;
     color: white;
     border: none;
     border-radius: 8px;
-    font-size: 16px;
     cursor: pointer;
+    margin-top: 10px;
 }
 
-#result {
-    font-size: 20px;
+#status {
+    font-size: 18px;
     margin-top: 15px;
     font-weight: bold;
 }

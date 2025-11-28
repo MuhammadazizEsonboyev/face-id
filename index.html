@@ -1,32 +1,172 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
-    <meta charset="UTF-8">
-    <title>Face ID Solishtirish</title>
-    <link rel="stylesheet" href="style.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
-    <script defer src="script.js"></script>
+  <meta charset="UTF-8" />
+  <title>Face ID Tekshiruv Ilovasi</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      background: rgba(0,0,0,0.6);
+      padding: 25px;
+      border-radius: 16px;
+      width: 900px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .flex {
+      display: flex;
+      gap: 20px;
+      justify-content: space-between;
+    }
+
+    .section {
+      width: 50%;
+    }
+
+    video {
+      border-radius: 12px;
+      border: 2px solid #00ffa6;
+      width: 100%;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 10px;
+      background: #00ffa6;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #00cc88;
+    }
+
+    #result {
+      font-size: 20px;
+      margin-top: 15px;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
+  <div class="container">
+    <h1>🧠 Real Time Face ID Tekshiruv</h1>
 
-<div class="app">
-    <h1>Face ID Solishtirish Ilovasi</h1>
+    <div class="flex">
+      <div class="section">
+        <h3>Bazadagi xodim rasmi</h3>
+        <input type="file" id="referenceImage" accept="image/*" />
+        <img id="refPreview" style="width:100%; margin-top:10px; border-radius:10px;" />
+      </div>
 
-    <div class="upload-section">
-        <h3>1. O'zingizning rasmingizni yuklang</h3>
-        <input type="file" id="imageUpload" accept="image/*">
-        <img id="uploadedImage" />
-    </div>
-
-    <div class="camera-section">
-        <h3>2. Kamera orqali yuzni tekshirish</h3>
+      <div class="section">
+        <h3>Kamera (Real vaqt)</h3>
         <video id="video" autoplay muted></video>
+        <button onclick="startCamera()">Kamerani yoqish</button>
+        <button onclick="compareFace()">Yuzlarni solishtirish</button>
+      </div>
     </div>
 
-    <button id="compareBtn">Yuzlarni solishtirish</button>
+    <div id="result"></div>
+  </div>
 
-    <p id="result"></p>
-</div>
+  <!-- Face API CDN -->
+  <script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
+  <script>
+    const video = document.getElementById('video');
+    const referenceInput = document.getElementById('referenceImage');
+    const refPreview = document.getElementById('refPreview');
+    const resultDiv = document.getElementById('result');
+
+    let referenceDescriptor;
+
+    // MODELLARNI YUKLASH
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
+      faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
+      faceapi.nets.faceRecognitionNet.loadFromUri('./models')
+    ]).then(() => {
+      console.log('Modellar yuklandi ✅');
+    });
+
+    // KAMERANI YOQISH
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+        })
+        .catch(err => alert("Kamera yoqilmadi: " + err));
+    }
+
+    // BAZA RASMINI YUKLASH
+    referenceInput.addEventListener('change', async () => {
+      const file = referenceInput.files[0];
+      const img = await faceapi.bufferToImage(file);
+      refPreview.src = img.src;
+
+      const detection = await faceapi
+        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        alert('Yuz topilmadi! Yaxshi sifatli rasm yuklang.');
+        return;
+      }
+
+      referenceDescriptor = detection.descriptor;
+      resultDiv.innerHTML = '✅ Baza rasmi saqlandi';
+    });
+
+    // YUZLARNI SOLISHTIRISH
+    async function compareFace() {
+      if (!referenceDescriptor) {
+        alert('Avval baza rasmini yuklang!');
+        return;
+      }
+
+      const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        resultDiv.innerHTML = '<span style="color:red">Yuz aniqlanmadi</span>';
+        return;
+      }
+
+      const distance = faceapi.euclideanDistance(
+        referenceDescriptor,
+        detection.descriptor
+      );
+
+      if (distance < 0.5) {
+        resultDiv.innerHTML = '✅ Bu xodim TASDIQLANDI';
+        resultDiv.style.color = '#00ffa6';
+      } else {
+        resultDiv.innerHTML = '❌ Bu boshqa shaxs';
+        resultDiv.style.color = 'red';
+      }
+    }
+  </script>
 </body>
 </html>
