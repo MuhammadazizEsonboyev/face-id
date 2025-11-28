@@ -1,68 +1,77 @@
-const photo = document.getElementById('photo');
-const preview = document.getElementById('preview');
-const startBtn = document.getElementById('startBtn');
 const video = document.getElementById('video');
-const status = document.getElementById('status');
+const imageUpload = document.getElementById('imageUpload');
+const result = document.getElementById('result');
+const checkBtn = document.getElementById('checkFace');
 
-let savedDescriptor; // rasmni saqlash uchun
 
-// Modellarni CDN orqali yuklash
+let referenceDescriptor = null;
+
+
+// MODELLARNI YUKLASH
 Promise.all([
-  faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/models'),
-  faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/models'),
-  faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/models')
-]).then(() => {
-    status.textContent = "Modellar yuklandi ✅";
+faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
+faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
+faceapi.nets.faceRecognitionNet.loadFromUri('./models')
+]).then(startVideo);
+
+
+// KAMERANI YOQISH
+function startVideo() {
+navigator.mediaDevices.getUserMedia({ video: {} })
+.then(stream => video.srcObject = stream)
+.catch(err => console.error(err));
+}
+
+
+// RASM YUKLANGANDA UNI O'QISH
+imageUpload.addEventListener('change', async () => {
+const file = imageUpload.files[0];
+const img = await faceapi.bufferToImage(file);
+
+
+const detections = await faceapi
+.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+.withFaceLandmarks()
+.withFaceDescriptor();
+
+
+if (!detections) {
+result.innerText = '❌ Yuz aniqlanmadi. Boshqa rasm tanlang.';
+return;
+}
+
+
+referenceDescriptor = detections.descriptor;
+result.innerText = '✅ Rasm saqlandi. Endi yuzni tekshirishingiz mumkin.';
 });
 
-// 1. Rasmni tanlash va saqlash
-photo.addEventListener('change', async () => {
-    const file = photo.files[0];
-    if(!file) return;
 
-    const img = await faceapi.bufferToImage(file);
-    preview.src = img.src;
+// REAL VAQTDA SOLISHTIRISH
+checkBtn.addEventListener('click', async () => {
+if (!referenceDescriptor) {
+result.innerText = '⚠️ Avval rasm yuklang!';
+return;
+}
 
-    const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
-    if(!detection){
-        status.textContent = "Rasmda yuz topilmadi ❌";
-        return;
-    }
 
-    savedDescriptor = detection.descriptor;
-    status.textContent = "Rasm saqlandi ✅";
-});
+const detection = await faceapi
+.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+.withFaceLandmarks()
+.withFaceDescriptor();
 
-// 2. Kamera va solishtirish
-startBtn.addEventListener('click', async () => {
-    if(!savedDescriptor){
-        alert("Avval rasm yuklang!");
-        return;
-    }
 
-    // Kamera ishga tushadi
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream;
+if (!detection) {
+result.innerText = '❌ Kamera yuzni ko‘rmadi';
+return;
+}
 
-    status.textContent = "Kamera ishlayapti, yuzni aniqlash...";
 
-    // Har 1.5 soniyada solishtirish
-    setInterval(async () => {
-        const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
-        if(!detection){
-            status.textContent = "Kamerada yuz topilmadi ❌";
-            return;
-        }
+const distance = faceapi.euclideanDistance(referenceDescriptor, detection.descriptor);
 
-        const distance = faceapi.euclideanDistance(savedDescriptor, detection.descriptor);
-        const percent = Math.round((1 - distance) * 100);
 
-        if(percent > 60){
-            status.textContent = `✅ MOS! O'xshashlik: ${percent}%`;
-            status.style.color = "green";
-        } else {
-            status.textContent = `❌ MOS EMAS: ${percent}%`;
-            status.style.color = "red";
-        }
-    }, 1500);
+if (distance < 0.6) {
+result.innerText = '✅ BU SIZ! (Moslik aniqlandi)';
+} else {
+result.innerText = '❌ BU SIZ EMASSIZ!';
+}
 });
